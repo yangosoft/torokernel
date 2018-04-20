@@ -484,8 +484,8 @@ Type
     end;
   PJmp_buf = ^jmp_buf;
 
-Function Setjmp (Var S : Jmp_buf) : longint;
-Procedure longjmp (Var S : Jmp_buf; value : longint);
+Function fpc_setjmp (Var S : Jmp_buf) : longint; compilerproc;
+Procedure fpc_longjmp (Var S : Jmp_buf; value : longint); compilerproc;
 
 
 
@@ -5986,7 +5986,7 @@ begin
   if (RaiseProc <> nil) and (_ExceptObjectStack <> nil) then
     with _ExceptObjectStack^ do
       RaiseProc(FObject,Addr,FrameCount,Frames);
-  longjmp(_ExceptAddrStack^.Buf^,FPC_Exception);
+ // longjmp(_ExceptAddrStack^.Buf^,FPC_Exception);
 end;
 
 
@@ -6067,7 +6067,7 @@ begin
   If _ExceptAddrStack=Nil then
     DoUnHandledException;
   ExceptObjectStack^.refcount := 0;
-  longjmp(_ExceptAddrStack^.Buf^,FPC_Exception);
+  //longjmp(_ExceptAddrStack^.Buf^,FPC_Exception);
 end;
 
 
@@ -7292,12 +7292,20 @@ begin
 end;
 
 
+procedure fpc_raise_nested;[public,alias:'FPC_RAISE_NESTED']; compilerproc;
+begin
+  //Internal_PopSecondObjectStack.Free;
+  //Internal_Reraise;
+end;
+
+
+
 {*****************************************************************************
                        SetJmp/LongJmp support.
 *****************************************************************************}
 
 
-function setjmp(var S : jmp_buf) : longint;assembler;[Public, alias : 'FPC_SETJMP'];nostackframe;
+function fpc_setjmp(var S : jmp_buf) : longint;assembler;[Public, alias : 'FPC_SETJMP'];nostackframe; compilerproc;
   asm
 {$ifdef win64}
     // Save registers.
@@ -7331,7 +7339,7 @@ function setjmp(var S : jmp_buf) : longint;assembler;[Public, alias : 'FPC_SETJM
   end;
 
 
-procedure longjmp(var S : jmp_buf;value : longint);assembler;[Public, alias : 'FPC_LONGJMP'];
+procedure fpc_longjmp(var S : jmp_buf;value : longint);assembler;[Public, alias : 'FPC_LONGJMP'];
   asm
 {$ifdef win64}
     // Restore registers.

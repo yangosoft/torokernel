@@ -99,6 +99,14 @@ type
   end;
   PMemoryRegion = ^TMemoryRegion;
 
+  PMemoryRegionE820 = ^TMemoryRegionE820;
+
+  TMemoryRegionE820 = packed record
+    Base: QWord;
+    Length: QWord;
+    tp: DWord;
+  end;
+
   TCore = record
     ApicID: LongInt; // Core Identification
     Present: Boolean; // It's present?
@@ -293,6 +301,11 @@ type
 
 var
   idt_gates: PInterruptGateArray; // Pointer to IDT
+  
+  // Pointer to zero_page_table which is built by qemu
+  zero_page_table: Pointer;
+  
+  Is_QemuLite: Boolean;
 
 // Put interruption gate in the idt
 procedure CaptureInt(int: Byte; Handler: Pointer);
@@ -852,18 +865,29 @@ var
   CounterID: LongInt; // starts with CounterID = 1
 
 // Return information about Memory Region
+// TODO: To check this for qemulite
 function GetMemoryRegion(ID: LongInt; Buffer: PMemoryRegion): LongInt;
 var
   Desc: PInt15h_info;
+  Desc1: PMemoryRegionE820; 
 begin
   if ID > CounterID then
     Result :=0
   else
     Result := SizeOf(TMemoryRegion);
-  Desc := Pointer(INT15H_TABLE + SizeOf(Int15h_info) * (ID-1));
-  Buffer.Base := Desc.Base;
-  Buffer.Length := Desc.Length;
-  Buffer.Flag := Desc.tipe;
+  if Is_QemuLite then
+  begin
+    Desc1 :=  Pointer(zero_page_table) + $2d0 + sizeof(TMemoryRegionE820) * (ID-1);
+    Buffer.Base := Desc1.Base;
+    Buffer.Length := Desc1.Length;
+    Buffer.Flag := Desc1.tp
+  end else 
+  begin
+    Desc := Pointer(INT15H_TABLE + SizeOf(Int15h_info) * (ID-1));
+    Buffer.Base := Desc.Base;
+    Buffer.Length := Desc.Length;
+    Buffer.Flag := Desc.tipe;
+  end;
 end;
 
 // Initialize Memory table. It uses information from bootloader.
@@ -889,6 +913,27 @@ begin
   AvailableMemory := AvailableMemory;
   CounterID := (QWord(Magic)-INT15H_TABLE);
   CounterID := counterId div SizeOf(Int15h_info);
+end;
+
+procedure MemoryCounterInitforQemu;
+var
+  e820_map: PMemoryRegionE820; 
+  nr_entries: Byte;
+  zero_page: PByte;
+  i: Longint;
+begin
+  CounterID := 0;
+  AvailableMemory := 0;
+  zero_page := zero_page_table;
+  nr_entries := zero_page[$1e8];
+  e820_map := Pointer(zero_page_table) + $2d0;
+  for i:= 0 to (nr_entries - 1) do
+  begin
+    if e820_map.tp = 1  then
+      Inc (AvailableMemory, e820_map.Length); 
+    Inc(e820_map); 
+  end;
+  CounterID := nr_entries;
 end;
 
 procedure Bcd_To_Bin(var val: LongInt); inline;
@@ -1107,7 +1152,7 @@ end;
 // Entry point of PE64 EXE
 // The Toro bootloader is starting all CPUs(Cores) with this entry point
 // ie: this procedure is executed in parallel by all CPUs when booting
-procedure main; [public, alias: '_mainCRTStartup']; assembler;
+procedure main; [public, alias: '_mainCRTStartup']; assembler; nostackframe;
 asm
   mov rax, cr3 // Cannot remove this warning! using eax generates error at compile-time.
   cmp rax, 90000h  // rax = $100000 when executed the first time from the bootloader (debugged once using FPC version)
@@ -1117,6 +1162,16 @@ asm
   call KernelStart
 end;
 {$ENDIF}
+
+
+procedure multiboot_main; [public, alias: 'MULTIBOOT_MAIN']; assembler; nostackframe;
+asm
+  mov zero_page_table, rsi
+  mov Is_QemuLite, 1
+  mov rsp, pstack
+  xor rbp, rbp
+  call KernelStart
+end;
 
 // Boot CPU using IPI messages.
 // Warning this procedure must be do it just one time per CPU
@@ -1536,7 +1591,10 @@ begin
   idt_gates := Pointer(IDTADDRESS);
   FillChar(PChar(IDTADDRESS)^, SizeOf(TInteruptGate)*256, 0);
   RelocateIrqs;
-  MemoryCounterInit;
+  if Is_QemuLite then
+   MemoryCounterInitforQemu
+  else
+   MemoryCounterInit;
   // cache Page structures
   CacheManagerInit;
   // CPU speed in Mhz
