@@ -301,11 +301,11 @@ type
 
 var
   idt_gates: PInterruptGateArray; // Pointer to IDT
-  
-  // Pointer to zero_page_table which is built by qemu
-  zero_page_table: Pointer;
-  
-  Is_QemuLite: Boolean;
+
+  {$IFDEF CPUQEMULITE}
+   // Pointer to zero_page_table which is built by qemu
+   zero_page_table: Pointer;
+  {$ENDIF}
 
 // Put interruption gate in the idt
 procedure CaptureInt(int: Byte; Handler: Pointer);
@@ -875,21 +875,41 @@ begin
     Result :=0
   else
     Result := SizeOf(TMemoryRegion);
-  if Is_QemuLite then
-  begin
+  {$IFDEF CPUQEMULITE}
     Desc1 :=  Pointer(zero_page_table) + $2d0 + sizeof(TMemoryRegionE820) * (ID-1);
     Buffer.Base := Desc1.Base;
     Buffer.Length := Desc1.Length;
     Buffer.Flag := Desc1.tp
-  end else 
-  begin
+  {$ELSE}
     Desc := Pointer(INT15H_TABLE + SizeOf(Int15h_info) * (ID-1));
     Buffer.Base := Desc.Base;
     Buffer.Length := Desc.Length;
     Buffer.Flag := Desc.tipe;
-  end;
+  {$ENDIF}
 end;
 
+{$IFDEF CPUQEMULITE}
+procedure MemoryCounterInit;
+var
+  e820_map: PMemoryRegionE820; 
+  nr_entries: Byte;
+  zero_page: PByte;
+  i: Longint;
+begin
+  CounterID := 0;
+  AvailableMemory := 0;
+  zero_page := zero_page_table;
+  nr_entries := zero_page[$1e8];
+  e820_map := Pointer(zero_page_table) + $2d0;
+  for i:= 0 to (nr_entries - 1) do
+  begin
+    if e820_map.tp = 1  then
+      Inc (AvailableMemory, e820_map.Length); 
+    Inc(e820_map); 
+  end;
+  CounterID := nr_entries;
+end;
+{$ELSE}
 // Initialize Memory table. It uses information from bootloader.
 // The bootloader uses INT15h.
 // Usable memory is above 1MB
@@ -914,27 +934,7 @@ begin
   CounterID := (QWord(Magic)-INT15H_TABLE);
   CounterID := counterId div SizeOf(Int15h_info);
 end;
-
-procedure MemoryCounterInitforQemu;
-var
-  e820_map: PMemoryRegionE820; 
-  nr_entries: Byte;
-  zero_page: PByte;
-  i: Longint;
-begin
-  CounterID := 0;
-  AvailableMemory := 0;
-  zero_page := zero_page_table;
-  nr_entries := zero_page[$1e8];
-  e820_map := Pointer(zero_page_table) + $2d0;
-  for i:= 0 to (nr_entries - 1) do
-  begin
-    if e820_map.tp = 1  then
-      Inc (AvailableMemory, e820_map.Length); 
-    Inc(e820_map); 
-  end;
-  CounterID := nr_entries;
-end;
+{$ENDIF}
 
 procedure Bcd_To_Bin(var val: LongInt); inline;
 begin
@@ -1163,15 +1163,15 @@ asm
 end;
 {$ENDIF}
 
-
+{$IFDEF CPUQemuLite}
 procedure multiboot_main; [public, alias: 'MULTIBOOT_MAIN']; assembler; nostackframe;
 asm
   mov zero_page_table, rsi
-  mov Is_QemuLite, 1
   mov rsp, pstack
   xor rbp, rbp
   call KernelStart
 end;
+{$ENDIF}
 
 // Boot CPU using IPI messages.
 // Warning this procedure must be do it just one time per CPU
@@ -1591,10 +1591,7 @@ begin
   idt_gates := Pointer(IDTADDRESS);
   FillChar(PChar(IDTADDRESS)^, SizeOf(TInteruptGate)*256, 0);
   RelocateIrqs;
-  if Is_QemuLite then
-   MemoryCounterInitforQemu
-  else
-   MemoryCounterInit;
+  MemoryCounterInit;
   // cache Page structures
   CacheManagerInit;
   // CPU speed in Mhz

@@ -1063,8 +1063,14 @@ begin
   ID := 1;
   while GetMemoryRegion(ID, @Buff) <> 0 do
   begin
+  {$IFDEF CPUQemuLite}
+  // in QemuLite, the whole available memory is in one chunk
+    if (Buff.Flag = MEM_AVAILABLE) then
+      Break;
+  {$ELSE}
     if (Buff.Flag = MEM_AVAILABLE) and (Buff.Base >= $10000) then
       Break;
+  {$ENDIF}
     Inc(ID);
   end;
   Panic(Buff.Flag = MEM_RESERVED,'DistributeMemoryRegions: Cannot find available memory region\n');

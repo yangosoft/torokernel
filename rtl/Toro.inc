@@ -8,6 +8,7 @@
 {$ELSE}
 	{$DEFINE DCC}
 {$ENDIF}
+//{$DEFINE CPUQemuLite}
 //{$DEFINE cpui386}
 //{$DEFINE CPUX86_64}
 //{$DEFINE DEBUG}
