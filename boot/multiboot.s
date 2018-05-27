@@ -1,4 +1,5 @@
 extern MULTIBOOT_MAIN
+extern INIT_CPU
 global _multiboot_main
 
 section .multiboot_header
@@ -25,9 +26,9 @@ pagedir         equ  100000h
 BOOT_GDT        equ  500h
 BOOT_IDT        equ  520h
 BOOT_PML4       equ 9000h
+BOOT_GDT_CODE   equ    8h
 
 ; Temp GDT and IDT
-; TODO: to check this
 gdtr:
   dw 8 * 4 - 1
   dd BOOT_GDT
@@ -49,12 +50,12 @@ _multiboot_main:
   mov rsi , 2000h
   mov [rsi] , byte 0eah
   xor rax , rax
-  ;mov eax , trampoline_init+boot32
+  mov eax , trampoline_init
   mov [rsi+1] , eax
   ; New page directory to handle 512GB
   mov rax , pagedir
   mov cr3 , rax
-  ; jump to torokernel
+  ; jump to MULTIBOOT_MAIN
   pop rsi
   kerneljump:
     jmp MULTIBOOT_MAIN
@@ -100,27 +101,23 @@ cleanpage:
   ret
 
 BITS 16
-; This procedure is executed in SMP Initialization
-; TODO: to use the idt, gdt and cr3 de multiboot
 trampoline_init:
-  ;lidt [idtr]
-  ;lgdt [gdtr]
-  ; Jump to protected mode
+  lidt [idtr]
+  lgdt [gdtr]
+  ; enable protected mode
   mov ebx,cr0
   or  ebx, 1
   mov cr0,ebx
-  ; Far jump 
   db 66h,0EAh
   dd trampoline_longmode
   dw 8h
-; Code when jumping to Long Mode from other cores
 trampoline_longmode:
   mov esp , 1000h
-  ; Long mode initialization
+  ; enable long mode
   mov eax , cr4
   bts eax , 5
   mov cr4 , eax
-  ;mov eax , BOOT_PML4
+  mov eax , BOOT_PML4
   mov cr3 , eax
   mov ecx, 0c0000080h
   rdmsr
@@ -129,9 +126,8 @@ trampoline_longmode:
   mov eax,cr0
   bts eax,31
   mov cr0,eax
-  ; Jump to kernel main
-  ;db 066h
-  ;db 0eah
-  ; TODO:
-  ;dd boot32+jumpkernel
-  ;dw kernel_code64
+  ; Jump to INIT_CPU
+  db 066h
+  db 0eah
+  dd INIT_CPU
+  dw BOOT_GDT_CODE

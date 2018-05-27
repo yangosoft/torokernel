@@ -1130,7 +1130,7 @@ const
   pstack: Pointer = @stack[5000] ;
 
 // Initialize the CPU in SMP initialization
-procedure InitCpu; assembler;
+procedure InitCpu; assembler; [public, alias: 'INIT_CPU']; assembler; nostackframe;
 asm
   mov rax, Kernel_Data_Sel
   mov ss, ax
