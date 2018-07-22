@@ -29,7 +29,9 @@ program ToroHello;
  {$mode delphi}
 {$ENDIF}
 
-{$IMAGEBASE 4194304}
+{$IFDEF WIN64}
+ {$IMAGEBASE 4194304}
+{$ENDIF}
 
 // Configuring the RUN for Lazarus
 {$IFDEF WIN64}
@@ -53,6 +55,11 @@ uses
 
 begin
   WriteConsoleF('/RHello World, I am TORO !!!\n',[]);
+  {$asmmode intel}
   // Halt core
+  asm
+    mov rax, BootTime
+    mov rbx, LocalCpuSpeed
+  end;
   While True do hlt;
 end.

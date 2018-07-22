@@ -188,6 +188,8 @@ var
   // It is used to calculate the delays
   LocalCpuSpeed: Int64 = 0;
   StartTime: TNow;
+  StartTimeQ: QWord;
+  BootTime: QWord;
   Cores: array[0..MAX_CPU-1] of TCore;
   LargestMonitorLine: longint;
   SmallestMonitorLine: longint;
@@ -1610,6 +1612,7 @@ begin
   SMPInitialization;
   SSEInit;
   MWaitInit;
+  StartTimeQ := read_rdtsc;
 end;
 
 end.

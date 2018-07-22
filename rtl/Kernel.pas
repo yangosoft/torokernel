@@ -58,6 +58,7 @@ begin
   FileSystemInit;
   NetworkInit;
   ConsoleInit;
+  BootTime := read_rdtsc - StartTimeQ;
   // we will never return from this procedure call
   {$IFDEF FPC} CreateInitThread(@InitSystem, 32*1024); {$ENDIF}
   {$IFDEF DCC}

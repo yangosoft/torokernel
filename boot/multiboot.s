@@ -16,18 +16,6 @@ header_start:
     dd 8    ; size
 header_end:
 
-BITS 64
-
-section .text
-
-pagedir         equ  100000h
-
-; these values come from qemu-lite
-BOOT_GDT        equ  500h
-BOOT_IDT        equ  520h
-BOOT_PML4       equ 9000h
-BOOT_GDT_CODE   equ    8h
-
 ; Temp GDT and IDT
 gdtr:
   dw 8 * 4 - 1
@@ -36,6 +24,18 @@ idtr:
   dw 13ebh
   dd BOOT_IDT
 
+BITS 64
+
+section .text
+
+pagedir         equ  100000h
+trampoline_add equ 7C00h
+
+; these values come from qemu-lite
+BOOT_GDT        equ  500h
+BOOT_IDT        equ  520h
+BOOT_PML4       equ 9000h
+BOOT_GDT_CODE   equ    8h
 
 ; rsi points to zero_page structure
 _multiboot_main:
@@ -50,8 +50,19 @@ _multiboot_main:
   mov rsi , 2000h
   mov [rsi] , byte 0eah
   xor rax , rax
-  mov eax , trampoline_init
+  mov eax , trampoline_start
   mov [rsi+1] , eax
+  ; Move trampoline code
+  mov rsi , trampoline_init
+  mov rdi , trampoline_add
+movetrampoline:
+  xor rax , rax
+  mov al , [rsi]
+  mov [rdi] , byte al
+  inc rsi
+  inc rdi
+  cmp rsi , trampoline_end
+  jne movetrampoline
   ; New page directory to handle 512GB
   mov rax , pagedir
   mov cr3 , rax
@@ -101,17 +112,26 @@ cleanpage:
   ret
 
 BITS 16
+
+; this code must be below the first MB
 trampoline_init:
-  lidt [idtr]
-  lgdt [gdtr]
+; Temp GDT and IDT
+  dw 8 * 4 - 1
+  dd BOOT_GDT
+  dw 13ebh
+  dd BOOT_IDT
+trampoline_start:
+  lidt [07c6h]
+  lgdt [07c0h]
   ; enable protected mode
   mov ebx,cr0
   or  ebx, 1
   mov cr0,ebx
   db 66h,0EAh
-  dd trampoline_longmode
+  dd trampoline_add+trampoline_longmode
   dw 8h
 trampoline_longmode:
+  hlt
   mov esp , 1000h
   ; enable long mode
   mov eax , cr4
@@ -131,3 +151,4 @@ trampoline_longmode:
   db 0eah
   dd INIT_CPU
   dw BOOT_GDT_CODE
+trampoline_end:
