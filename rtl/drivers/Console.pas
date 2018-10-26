@@ -120,7 +120,7 @@ begin
 end;
 {$ENDIF}
 
-procedure PrintDecimal(Value: PtrUInt);
+procedure PrintDecimal(Value: PtrUInt);[public, alias : 'PrintDecimal'];
 var
   I, Len: Byte;
   S: string[21]; // 21 is the max number of characters needed to represent 64 bits number in decimal

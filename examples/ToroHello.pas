@@ -29,6 +29,8 @@ program ToroHello;
 {%RunCommand qemu-system-x86_64 -m 512 -smp 2 -drive format=raw,file=ToroHello.img}
 {%RunFlags BUILD-}
 
+
+
 // They are declared just the necessary units
 // The needed units depend on the hardware where you are running the application
 uses
@@ -41,8 +43,22 @@ uses
   Pci in '..\rtl\drivers\Pci.pas',
   Console in '..\rtl\drivers\Console.pas';
 
-begin
-  WriteConsoleF('/RHello World, I am TORO !!!\n',[]);
-  // Halt core
-  While True do hlt;
+
+    
+{$L hello.o} 
+Procedure _printDecimalFromC (); cdecl; external name 'printDecimal';
+
+    
+{$L hello.o} 
+Function Hello(): Integer; cdecl; external name 'hello';  
+var ret : Integer;
+begin  
+     WriteConsoleF('/RHello World, I am TORO !!!\n',[]);
+     ret := hello();
+     WriteConsoleF('/RThis value is from C: %d\n',[ret]);
+     _printDecimalFromC();
+     WriteConsoleF('/R <-- this comes from C calling a TORO API\n',[]);
+     
+     While True do hlt;
 end.
+

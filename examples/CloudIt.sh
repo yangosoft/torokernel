@@ -87,7 +87,7 @@ else
    echo "$appsrc does not exist, exiting"
    exit 1
 fi
-
+exit 0
 # destroy any previous instance
 virsh destroy $app
 virsh undefine $app
